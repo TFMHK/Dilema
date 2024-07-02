@@ -1,64 +1,56 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Security.Cryptography;
-using System.Text;
-using Newtonsoft.Json;
 
 public class GameBoardManager
 {
-    private string filePath = "gameBoards.json";
-    private Dictionary<string, double> gameBoards = new Dictionary<string, double>();
+    private Dictionary<string, double> boardEvaluations;
+    private const string FileName = "boardEvaluations.txt";
 
     public GameBoardManager()
     {
-        LoadGameBoards();
+        boardEvaluations = new Dictionary<string, double>();
+        LoadEvaluationsFromFile();
     }
 
-    private void LoadGameBoards()
+    public bool TryGetGameBoard(Board board, out double evaluation)
     {
-        if (File.Exists(filePath))
+        return boardEvaluations.TryGetValue(board.ToString(), out evaluation);
+    }
+
+    public void AddGameBoard(Board board, double evaluation)
+    {
+        string boardStr = board.ToString();
+        if (!boardEvaluations.ContainsKey(boardStr))
         {
-            string json = File.ReadAllText(filePath);
-            gameBoards = JsonConvert.DeserializeObject<Dictionary<string, double>>(json) ?? new Dictionary<string, double>();
+            boardEvaluations[boardStr] = evaluation;
+            SaveEvaluationsToFile();
         }
     }
 
-    private void SaveGameBoards()
+    private void LoadEvaluationsFromFile()
     {
-        string json = JsonConvert.SerializeObject(gameBoards, Formatting.Indented);
-        File.WriteAllText(filePath, json);
-    }
-
-    private string ComputeHash(string input)
-    {
-        using (SHA256 sha256 = SHA256.Create())
+        if (File.Exists(FileName))
         {
-            byte[] bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(input));
-            StringBuilder builder = new StringBuilder();
-            foreach (byte b in bytes)
+            foreach (var line in File.ReadAllLines(FileName))
             {
-                builder.Append(b.ToString("x2"));
+                var parts = line.Split('|');
+                if (parts.Length == 2 && double.TryParse(parts[1], out double evaluation))
+                {
+                    boardEvaluations[parts[0]] = evaluation;
+                }
             }
-            return builder.ToString();
         }
     }
 
-    public void AddGameBoard(Board board, double value)
+    private void SaveEvaluationsToFile()
     {
-        string boardString = board.ToString();
-        string hash = ComputeHash(boardString);
-        if (!gameBoards.ContainsKey(hash))
+        using (var writer = new StreamWriter(FileName))
         {
-            gameBoards[hash] = value;
-            SaveGameBoards();
+            foreach (var entry in boardEvaluations)
+            {
+                writer.WriteLine($"{entry.Key}|{entry.Value}");
+            }
         }
-    }
-
-    public bool TryGetGameBoard(Board board, out double value)
-    {
-        string boardString = board.ToString();
-        string hash = ComputeHash(boardString);
-        return gameBoards.TryGetValue(hash, out value);
     }
 }
